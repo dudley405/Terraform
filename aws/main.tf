@@ -13,6 +13,10 @@ module "vpc" {
   azs = var.subnet_availability_zones
   private_subnets = local.private_subnets
   public_subnets = local.public_subnets
+  manage_default_route_table = false
+  manage_default_network_acl = false
+  manage_default_security_group = false
+  manage_default_vpc = false
 
   enable_nat_gateway = true
   one_nat_gateway_per_az = true
@@ -43,10 +47,15 @@ module "endpoints" {
 
   endpoints = {
     s3 = {
-      # interface endpoint
+      /* interface endpoint
+      service = "s3"
+      tags = { Name = "s3-vpc-endpoint" }
+      */
+
+      // Gateway Endpoint
       service = "s3"
       service_type = "Gateway"
-      route_table_ids = flatten([module.vpc.private_route_table_ids, module.vpc.public_route_table_ids])
+      route_table_ids = module.vpc.private_route_table_ids
       tags = { Name = "s3-vpc-endpoint" }
     }
   }
