@@ -1,0 +1,120 @@
+resource "aws_vpc" "vpc" {
+  cidr_block = var.vpc_cidr_block
+  enable_dns_hostnames = true
+  tags = {
+    Environment = "Development"
+  }
+}
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.vpc.id
+}
+
+
+resource "aws_subnet" "a-private" {
+  vpc_id = aws_vpc.vpc.id
+  cidr_block = "10.0.0.0/18"
+  availability_zone = "us-west-1a"
+  tags = {
+    Name = "a-private"
+  }
+}
+resource "aws_subnet" "b-private" {
+  vpc_id = aws_vpc.vpc.id
+  cidr_block = "10.0.64.0/18"
+  availability_zone = "us-west-1a"
+  tags = {
+    Name = "b-private"
+  }
+}
+
+resource "aws_subnet" "c-public" {
+  vpc_id = aws_vpc.vpc.id
+  cidr_block = "10.0.128.0/18"
+  availability_zone = "us-west-1c"
+  tags = {
+    Name = "c-public"
+  }
+}
+
+resource "aws_subnet" "d-public" {
+  vpc_id = aws_vpc.vpc.id
+  cidr_block = "10.0.192.0/18"
+  availability_zone = "us-west-1c"
+  tags = {
+    Name = "d-public"
+  }
+}
+
+
+resource "aws_route_table" "public_route_table" {
+  vpc_id = aws_vpc.vpc.id
+}
+
+resource "aws_route_table" "private_route_table_a" {
+  vpc_id = aws_vpc.vpc.id
+}
+
+resource "aws_route_table" "private_route_table_b" {
+  vpc_id = aws_vpc.vpc.id
+}
+
+resource "aws_route" "public_route_a" {
+  route_table_id = aws_route_table.public_route_table.id
+  destination_cidr_block = aws_subnet.c-public.cidr_block
+  gateway_id = aws_internet_gateway.igw.id
+}
+
+resource "aws_route" "private_route_a" {
+  route_table_id = aws_route_table.private_route_table_a.id
+  destination_cidr_block = aws_subnet.a-private.cidr_block
+  nat_gateway_id = aws_nat_gateway.nat_gateway_a.id
+}
+
+resource "aws_route" "private_route_b" {
+  route_table_id = aws_route_table.private_route_table_b.id
+  destination_cidr_block = aws_subnet.b-private.cidr_block
+  nat_gateway_id = aws_nat_gateway.nat_gateway_b.id
+}
+
+
+resource "aws_eip" "eip" {
+  domain = "vpc"
+  count = 2
+}
+
+resource "aws_nat_gateway" "nat_gateway_a" {
+  allocation_id = aws_eip.eip[0].allocation_id
+  subnet_id = aws_subnet.c-public.id
+}
+
+resource "aws_nat_gateway" "nat_gateway_b" {
+  allocation_id = aws_eip.eip[1].allocation_id
+  subnet_id = aws_subnet.d-public.id
+}
+
+resource "aws_route_table_association" "public-c" {
+  subnet_id      = aws_subnet.c-public.id
+  route_table_id = aws_route_table.public_route_table.id
+}
+
+resource "aws_route_table_association" "public-d" {
+  subnet_id      = aws_subnet.d-public.id
+  route_table_id = aws_route_table.public_route_table.id
+}
+
+resource "aws_route_table_association" "private-a" {
+  subnet_id      = aws_subnet.a-private.id
+  route_table_id = aws_route_table.private_route_table_a.id
+}
+
+resource "aws_route_table_association" "private-b" {
+  subnet_id      = aws_subnet.b-private.id
+  route_table_id = aws_route_table.private_route_table_b.id
+}
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id       = aws_vpc.vpc.id
+  service_name = "com.amazonaws.us-west-1.s3"
+  route_table_ids = [aws_route_table.private_route_table_a.id, aws_route_table.private_route_table_b.id]
+}
